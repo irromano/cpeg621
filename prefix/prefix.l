@@ -3,7 +3,7 @@
 #include <string.h>	/* for sscanf */
 #include "prefix.tab.h"
 
-// #define DEBUG /* for debuging: print tokens and their line numbers */
+#define DEBUG /* for debuging: print tokens and their line numbers */
 //#define NUMBER 258 /* copy this from cal.tab.c */
 
 // typedef union { /* copy this from cal.tab.c */
@@ -93,21 +93,13 @@ extern char *yytext;
 	return '!';
 	}
 
-[0-9]+ {
-	#ifdef DEBUG
-	printf("token %s at line %d\n", yytext, lineNum);
-	#endif
-	yylval.d = atoi(yytext);
-	return NUMBER;
-	}
-
-[a-z][a-zA-Z0-9]+	{
+([0-9]+|[a-z][a-zA-Z0-9]*) {
 	#ifdef DEBUG
 	printf("token %s at line %d\n", yytext, lineNum);
 	#endif
 	sscanf(yytext, "%s", yylval.name);
-	return TEXT;
-}
+	return NUMBER;
+	}
 
 %%
 int yywrap() { /* need this to avoid link problem */
