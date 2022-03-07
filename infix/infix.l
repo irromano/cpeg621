@@ -101,7 +101,7 @@ extern char *yytext;
 	return NUMBER;
 	}
 
-[a-z][a-zA-Z0-9]+	{
+[a-z][a-zA-Z0-9]*	{
 	#ifdef DEBUG
 	printf("token %s at line %d\n", yytext, lineNum);
 	#endif

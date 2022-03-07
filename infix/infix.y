@@ -117,6 +117,18 @@ factor : factor '*' term
 		printf("factor %d : factor %d / term %d\n", $$, $1, $3);
 		#endif
 	}
+	| factor POW term
+	{
+		int num = 1;
+		for (int i=0; i<$3; i++)
+		{
+			num *= $1;
+		}
+		$$ = num;
+		#ifdef DEBUG
+		printf("term %d: %d ** %d\n", $$, $1, $3);
+		#endif
+	}
        | term
 	{
 		$$ = $1;
@@ -153,18 +165,6 @@ term : NUMBER
 		$$ = ($2 == 0) ? 1 : 0;
 		#ifdef DEBUG
 		printf("term %d: !%d\n", $$, $2);
-		#endif
-	}
-	| factor POW term
-	{
-		int num = 1;
-		for (int i=0; i<$3; i++)
-		{
-			num *= $1;
-		}
-		$$ = num;
-		#ifdef DEBUG
-		printf("term %d: %d ** %d\n", $$, $1, $3);
 		#endif
 	}
 	
