@@ -4,7 +4,7 @@
 #include <string.h>
 #include <math.h>
 
-#define DEBUG /* for debuging: print production results */
+// #define DEBUG /* for debuging: print production results */
 int lineNum = 1;
 
 /* prototype functions */

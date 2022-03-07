@@ -3,7 +3,7 @@
 #include <string.h>	/* for sscanf */
 #include "infix.tab.h"
 
-#define DEBUG /* for debuging: print tokens and their line numbers */
+// #define DEBUG /* for debuging: print tokens and their line numbers */
 //#define NUMBER 258 /* copy this from cal.tab.c */
 
 // typedef union { /* copy this from cal.tab.c */

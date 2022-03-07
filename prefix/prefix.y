@@ -5,7 +5,7 @@
 #include <math.h>
 #include <stdbool.h>
 
-#define DEBUG /* for debuging: print production results */
+// #define DEBUG /* for debuging: print production results */
 int lineNum = 1;
 
 void yyerror(char *ps, ...) 

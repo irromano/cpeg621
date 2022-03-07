@@ -5,7 +5,7 @@ lex.yy.o: infix.l
 	flex infix.l; gcc -c lex.yy.c
 
 infix.tab.o: infix.y
-	bison -d -v infix.y; gcc -c infix.tab.c
+	bison -d infix.y; gcc -c infix.tab.c
 
 clean:
 	rm -f p2 infix.output *.o infix.tab* lex.yy.c
