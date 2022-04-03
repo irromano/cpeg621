@@ -4,7 +4,7 @@
 #include <string.h>	/* for sscanf */
 #include "infix.tab.h"
 
-#define DEBUG /* for debuging: print tokens and their line numbers */
+//#define DEBUG /* for debuging: print tokens and their line numbers */
 //#define NUMBER 258 /* copy this from cal.tab.c */
 
 //YYSTYPE yylval; /* for passing value to parser */
@@ -20,13 +20,6 @@ extern char *yytext;
 		lineNum++;
 		return '\n';
 	 }
-
-"quit()" {
-	#ifdef DEBUG
-	printf("token 'quit()' at line %d\n", lineNum);
-	#endif
-	return QUIT;
-	}
 
 "=" {
 	#ifdef DEBUG
