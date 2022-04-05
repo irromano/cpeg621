@@ -1,4 +1,5 @@
 %{
+
 #include <stdio.h>
 #include <ctype.h>
 #include <string.h>
@@ -29,12 +30,15 @@ int *tmpCnt;
 %}
 
 %code requires {
+#define VARNAME_LEN 100
+#define VAREXP_LEN 500
 	struct nodeVar
 	{
-		char name[100];
+		char name[VARNAME_LEN];
 		int val;
-		char exp[500];
+		char exp[VAREXP_LEN];
 		struct nodeVar *next;
+		struct nodeVar *prev;
 	} nodeVar;
 
 	struct nodeStack
@@ -68,15 +72,12 @@ int *tmpCnt;
 %%
 fe3exp : exp '\n'
 	{ 
-
 	}
 	| fe3exp exp '\n'
 	{ 
-
 	}
 	| fe3exp '\n'
 	{
-
 	}
 	| '(' exp '\n'
 	{
@@ -117,21 +118,23 @@ exp : exp '+' factor
 		if ($1->val != 0)
 			val = $1->val;
 
-		if ($3 == codeStack->top)
+		char exp[VAREXP_LEN];
+		sprintf(exp, "If(%s){\n", $1->name);
+		//struct vodeVar *tempNode = yyvsp->nPtr
+		while ($1 != codeStack->top)
 		{
 			struct nodeVar *node = stackPop();
-			$$ = stackPush("tmp", val);
-			sprintf($$->name, "tmp%d", *tmpCnt);
-			*tmpCnt = *tmpCnt + 1;
-			sprintf($$->exp, "If(%s){\n\t%s%s\t%s=%s;\n}else{\n\t%s=0;\n}\n", $1->name, node->name, node->exp, $$->name, $3->name, $$->name);
+			char tmp[VAREXP_LEN];
+			sprintf(tmp, "\t%s%s", node->name, node->exp);
+			strcat(exp, tmp);
 		}
-		else
-		{
-			$$ = stackPush("tmp", val);
-			sprintf($$->name, "tmp%d", *tmpCnt);
-			*tmpCnt = *tmpCnt + 1;
-			sprintf($$->exp, "If(%s){\n\t%s=%s;\n}else{\n\t%s=0;\n}\n", $1->name, $$->name, $3->name, $$->name);
-		}
+		$$ = stackPush("tmp", val);
+		sprintf($$->name, "tmp%d", *tmpCnt);
+		*tmpCnt = *tmpCnt + 1;
+		char tmp[VAREXP_LEN];
+		sprintf(tmp, "\t%s=%s;\n}else{\n\t%s=0;\n}\n", $$->name, $3->name, $$->name);
+		strcat(exp, tmp);
+		sprintf($$->exp, "%s", exp);
 	}
     | factor
 	{ 
@@ -189,7 +192,11 @@ term : NUMBER
 	| '!' term
 	{
 		int val = ($2->val == 0) ? 1 : 0;
-		$$ = newVar("tmp", val);
+		$$ = stackPush("tmp", val);
+		sprintf($$->name, "tmp%d", *tmpCnt);
+		*tmpCnt = *tmpCnt + 1;
+		sprintf($$->exp, "=%d;\n", val);
+
 	}
 	
 	| TEXT '=' exp
@@ -213,6 +220,7 @@ struct nodeVar* stackPush(char* name, int val)
 		codeStack->top->next = node;
 	else
 		codeStack->bottom = node;
+	node->prev = codeStack->top;
 	codeStack->top = node;
 	codeStack->cnt++;
 	return codeStack->top;
@@ -221,10 +229,7 @@ struct nodeVar* stackPush(char* name, int val)
 struct nodeVar* stackPop()
 {
 	struct nodeVar *node = codeStack->top;
-	struct nodeVar *top = codeStack->bottom;
-	while (top->next != node)
-		top = top->next;
-	codeStack->top = top;
+	codeStack->top = codeStack->top->prev;
 	codeStack->top->next = NULL;
 	codeStack->cnt--;
 	return node;
@@ -274,8 +279,13 @@ void printStack()
 			printf("%s%s", tmp->name, tmp->exp);
 		else
 			printf("%s", tmp->exp);
-		tmp = tmp->next;
+		struct nodeVar *next = tmp->next;
+		free(tmp);
+		tmp = next;
 	}
+	codeStack->bottom = NULL;
+	codeStack->top = NULL;
+	codeStack->cnt = 0;
 }
 
 void freeNodes()
