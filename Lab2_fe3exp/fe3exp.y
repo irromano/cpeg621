@@ -148,7 +148,7 @@ exp : exp '+' factor
 			dependCnt--;
 		}
 		struct nodeVar *node = stackPush($$->name, $3->val);
-		sprintf(node->exp, "=%s;\n}else{\n", $1->name);
+		sprintf(node->exp, "=%s;\n}else{\n", node->prev->name);
 		node->tabCnt++;
 		struct nodeVar *elseNode = stackPush($$->name, 0);
 		sprintf(elseNode->exp, "=0;\n}\n");
