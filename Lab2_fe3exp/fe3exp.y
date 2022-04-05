@@ -68,15 +68,15 @@ int *tmpCnt;
 %%
 fe3exp : exp '\n'
 	{ 
-		printf("\n");
+
 	}
 	| fe3exp exp '\n'
 	{ 
-		printf("\n");
+
 	}
 	| fe3exp '\n'
 	{
-		printf("\n");
+
 	}
 	| '(' exp '\n'
 	{
@@ -123,7 +123,7 @@ exp : exp '+' factor
 			$$ = stackPush("tmp", val);
 			sprintf($$->name, "tmp%d", *tmpCnt);
 			*tmpCnt = *tmpCnt + 1;
-			sprintf($$->exp, "If(%s){\n\t%s=%s;\n\t%s%s}else{\n\t%s=0;\n}\n", $1->name, $$->name, $3->name, node->name, node->exp, $$->name);
+			sprintf($$->exp, "If(%s){\n\t%s%s\t%s=%s;\n}else{\n\t%s=0;\n}\n", $1->name, node->name, node->exp, $$->name, $3->name, $$->name);
 		}
 		else
 		{
@@ -270,7 +270,10 @@ void printStack()
 	struct nodeVar * tmp = codeStack->bottom;
 	while (tmp != NULL)
 	{
-		printf("%s%s", tmp->name, tmp->exp);
+		if (strstr(tmp->exp, "If(") == NULL)
+			printf("%s%s", tmp->name, tmp->exp);
+		else
+			printf("%s", tmp->exp);
 		tmp = tmp->next;
 	}
 }
