@@ -9,6 +9,7 @@
 int lineNum = 1;
 
 /* prototype functions */
+struct nodeVar* stackPushNode(struct nodeVar* node);
 struct nodeVar* stackPush(char* name, int val);
 struct nodeVar* stackPop();
 struct nodeVar* assignVar(char *name, int val);
@@ -39,6 +40,8 @@ int *tmpCnt;
 		char exp[VAREXP_LEN];
 		struct nodeVar *next;
 		struct nodeVar *prev;
+		int tabCnt;
+		int conditional;
 	} nodeVar;
 
 	struct nodeStack
@@ -116,25 +119,40 @@ exp : exp '+' factor
 	{
 		int val = 0;
 		if ($1->val != 0)
-			val = $1->val;
+			val = $3->val;
 
-		char exp[VAREXP_LEN];
-		sprintf(exp, "If(%s){\n", $1->name);
-		//struct vodeVar *tempNode = yyvsp->nPtr
+		struct nodeVar *dependTop = NULL;
+		struct nodeVar *dependBottom = NULL;
+		int dependCnt = 0;
 		while ($1 != codeStack->top)
 		{
+			dependCnt++;
 			struct nodeVar *node = stackPop();
-			char tmp[VAREXP_LEN];
-			sprintf(tmp, "\t%s%s", node->name, node->exp);
-			strcat(exp, tmp);
+			if (dependTop == NULL)
+			{
+				dependTop = node;
+			}
+			node->tabCnt++;
+			dependBottom = node;
 		}
+		dependBottom->prev = NULL;
 		$$ = stackPush("tmp", val);
 		sprintf($$->name, "tmp%d", *tmpCnt);
 		*tmpCnt = *tmpCnt + 1;
-		char tmp[VAREXP_LEN];
-		sprintf(tmp, "\t%s=%s;\n}else{\n\t%s=0;\n}\n", $$->name, $3->name, $$->name);
-		strcat(exp, tmp);
-		sprintf($$->exp, "%s", exp);
+		sprintf($$->exp, "If(%s){\n", $1->name);
+		$$->conditional = 1;
+		while(dependCnt)
+		{
+			stackPushNode(dependBottom);
+			dependBottom = dependBottom->next;
+			dependCnt--;
+		}
+		struct nodeVar *node = stackPush($$->name, $3->val);
+		sprintf(node->exp, "=%s;\n}else{\n", $1->name);
+		node->tabCnt++;
+		struct nodeVar *elseNode = stackPush($$->name, 0);
+		sprintf(elseNode->exp, "=0;\n}\n");
+		elseNode->tabCnt++;
 	}
     | factor
 	{ 
@@ -213,9 +231,8 @@ term : NUMBER
 
 %%
 
-struct nodeVar* stackPush(char* name, int val)
+struct nodeVar* stackPushNode(struct nodeVar *node)
 {
-	struct nodeVar *node = newVar(name, val);
 	if (codeStack->cnt)
 		codeStack->top->next = node;
 	else
@@ -226,11 +243,17 @@ struct nodeVar* stackPush(char* name, int val)
 	return codeStack->top;
 }
 
+struct nodeVar* stackPush(char* name, int val)
+{
+	struct nodeVar *node = newVar(name, val);
+	return stackPushNode(node);
+}
+
 struct nodeVar* stackPop()
 {
 	struct nodeVar *node = codeStack->top;
 	codeStack->top = codeStack->top->prev;
-	codeStack->top->next = NULL;
+	//codeStack->top->next = NULL;
 	codeStack->cnt--;
 	return node;
 }
@@ -241,6 +264,7 @@ struct nodeVar* assignVar(char *name, int val)
 	struct nodeVar *var = findVar(name, val, usrHead);
 	var->val = val;
 	return var;
+
 }
 
 struct nodeVar* findVar(char *name, int val, struct nodeVar *var)
@@ -264,9 +288,11 @@ struct nodeVar* findVar(char *name, int val, struct nodeVar *var)
 struct nodeVar* newVar(char* name, int val)
 {
 	struct nodeVar* var = (struct nodeVar*) malloc(sizeof(struct nodeVar));
-	sscanf(name, "%s", var->name);
+	sprintf(var->name, "%s", name);
 	var->val = val;
 	var->next = NULL;
+	var->tabCnt = 0;
+	var->conditional = 0;
 	return var;
 }
 
@@ -275,10 +301,12 @@ void printStack()
 	struct nodeVar * tmp = codeStack->bottom;
 	while (tmp != NULL)
 	{
-		if (strstr(tmp->exp, "If(") == NULL)
-			printf("%s%s", tmp->name, tmp->exp);
-		else
+		for (int i=0; i<tmp->tabCnt; i++)
+			printf("\t");
+		if (tmp->conditional)
 			printf("%s", tmp->exp);
+		else
+			printf("%s%s", tmp->name, tmp->exp);
 		struct nodeVar *next = tmp->next;
 		free(tmp);
 		tmp = next;
