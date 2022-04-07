@@ -210,7 +210,7 @@ term : NUMBER
 	| TEXT
 	{
 		struct varNode *node = findVar($1, 0, usrHead);
-		$$ = stackPush(NULL, node, NULL, 2, '=', node->val);
+		$$ = newInst(node,NULL, NULL, 1, '=', node->val);
 	}
 	| '!' term
 	{
