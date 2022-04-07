@@ -29,6 +29,7 @@ extern FILE *yyin;
 		int operation;
 		struct instNode *next;
 		struct instNode *prev;
+		struct instNode *parent;
 		int tabCnt;
 	} instNode;
 
@@ -36,6 +37,7 @@ extern FILE *yyin;
 	{
 		char name[VARNAME_LEN];
 		int val;
+		int tmp;
 		struct varNode *next;
 		struct varNode *prev;
 	} varNode;
@@ -59,9 +61,9 @@ extern FILE *yyin;
 	struct varNode* literalPush(int d);
 	struct varNode* literalPop();
 	struct instNode* newInst(struct varNode *defVar, struct varNode *leftVar, struct varNode *rightVar, int varCnt, int operation, int val);
-	struct varNode* assignVar(char *name, int val);
-	struct varNode* findVar(char *name, int val, struct varNode *var);
-	struct varNode* newVar(char* name, int val);
+	struct varNode* assignVar(char *name, int val, int tmp);
+	struct varNode* findVar(char *name, int val, struct varNode *var, int tmp);
+	struct varNode* newVar(char* name, int val, int tmp);
 	void printStack();
 
 	struct varNode *usrHead;
@@ -130,43 +132,41 @@ exp : exp '+' factor
 	}
 	| factor '?' term
 	{
-		$$ = $1;
-		// int val = 0;
-		// if ($1->defVar->val != 0)
-		// 	val = $3->defVar->val;
+		int val = 0;
+		if ($1->defVar->val != 0)
+			val = $3->defVar->val;
 
-		// struct varNode *dependTop = NULL;
-		// struct varNode *dependBottom = NULL;
-		// int varCnt = 0;
-		// while ($1 != codeStack->top)
-		// {
-		// 	varCnt++;
-		// 	struct varNode *node = stackPop();
-		// 	if (dependTop == NULL)
-		// 	{
-		// 		dependTop = node;
-		// 	}
-		// 	node->tabCnt++;
-		// 	dependBottom = node;
-		// }
-		// dependBottom->prev = NULL;
-		// $$ = stackPush("tmp", val);
-		// sprintf($$->name, "tmp%d", *tmpCnt);
-		// *tmpCnt = *tmpCnt + 1;
-		// sprintf($$->exp, "If(%s){\n", $1->name);
-		// $$->conditional = 1;
-		// while(varCnt)
-		// {
-		// 	stackPushNode(dependBottom);
-		// 	dependBottom = dependBottom->next;
-		// 	varCnt--;
-		// }
-		// struct varNode *node = stackPush($$->name, $3->val);
-		// sprintf(node->exp, "=%s;\n}else{\n", node->prev->name);
-		// node->tabCnt++;
-		// struct varNode *elseNode = stackPush($$->name, 0);
-		// sprintf(elseNode->exp, "=0;\n}\n");
-		// elseNode->tabCnt++;
+		struct instNode *dependTop = NULL;
+		struct instNode *dependBottom = NULL;
+		int instCnt = 0;
+		while ($1 != codeStack->top)
+		{
+			instCnt++;
+			struct instNode *node = stackPop();
+			if (dependTop == NULL)
+			{
+				dependTop = node;
+			}
+			node->tabCnt++;
+			dependBottom = node;
+		}
+		dependBottom->prev = NULL;
+		$$ = stackPush(NULL, $1->defVar, $3->defVar, 3, '?', val);
+		while(instCnt)
+		{
+			dependBottom->parent = $$;
+			stackPushNode(dependBottom);
+			dependBottom = dependBottom->next;
+			instCnt--;
+		}
+		struct instNode *node = stackPush($$->defVar, $3->defVar, NULL, 2, '=', val);
+		node->parent = $$;
+		node->tabCnt++;
+		stackPush(NULL, NULL, NULL, 0, '|', 0);
+		struct varNode *lit = literalPush(0);
+		struct instNode *elseNode = stackPush($$->defVar, lit, NULL, 2, '=', 0);
+		elseNode->parent = $$;
+		elseNode->tabCnt++;
 	}
     | factor
 	{ 
@@ -209,24 +209,32 @@ term : NUMBER
 	}
 	| TEXT
 	{
-		struct varNode *node = findVar($1, 0, usrHead);
+		struct varNode *node = findVar($1, 0, usrHead, 0);
 		$$ = newInst(node,NULL, NULL, 1, '=', node->val);
 	}
 	| '!' term
 	{
 		int val = ($2->defVar->val == 0) ? 1 : 0;
 		struct varNode *lit = literalPush(val);
+		if (codeStack->cnt && codeStack->top->defVar->tmp)
+		{
+			struct instNode *top = stackPop();
+		}
 		$$ = stackPush(NULL, lit, NULL, 1, '=', val);
 	}
-	
 	| TEXT '=' exp
 	{
-		struct varNode *node = assignVar($1, $3->defVar->val);
+		struct varNode *node = assignVar($1, $3->defVar->val, 0);
 		struct varNode *tmpNode = $3->defVar;
-		if (tmpNode == codeStack->top->defVar)
+		if (codeStack->cnt && codeStack->top->defVar->tmp && tmpNode == codeStack->top->defVar)
 		{
 			codeStack->top->defVar = node;
+			*tmpCnt = *tmpCnt - 1;
 			$$ = $3;
+			if (codeStack->top->parent != NULL)
+			{
+				codeStack->top->prev->prev->defVar = node;
+			}
 		}
 		else
 		{
@@ -269,7 +277,7 @@ struct instNode* stackPop()
 
 struct varNode* literalPush(int d)
 {
-	struct varNode *node = newVar("L", d);
+	struct varNode *node = newVar("L", d, 1);
 	sprintf(node->name, "%d", d);
 	if (literals->top == NULL)
 	{
@@ -298,7 +306,7 @@ struct instNode* newInst(struct varNode *defVar, struct varNode *leftVar, struct
 		char tmp[VARNAME_LEN];
 		sprintf(tmp, "tmp%d", *tmpCnt);
 		*tmpCnt = *tmpCnt + 1;
-		inst->defVar = assignVar(tmp, val);
+		inst->defVar = assignVar(tmp, val, 1);
 	}
 	else
 	{
@@ -314,18 +322,19 @@ struct instNode* newInst(struct varNode *defVar, struct varNode *leftVar, struct
 	inst->tabCnt = 0;
 	inst->next = NULL;
 	inst->prev = NULL;
+	inst->parent = NULL;
 	return inst;
 }
 
-struct varNode* assignVar(char *name, int val)
+struct varNode* assignVar(char *name, int val, int tmp)
 {
-	struct varNode *var = findVar(name, val, usrHead);
+	struct varNode *var = findVar(name, val, usrHead, tmp);
 	var->val = val;
 	return var;
 
 }
 
-struct varNode* findVar(char *name, int val, struct varNode *var)
+struct varNode* findVar(char *name, int val, struct varNode *var, int tmp)
 {
 	if(strcmp(name, var->name) == 0)
 	{
@@ -333,21 +342,22 @@ struct varNode* findVar(char *name, int val, struct varNode *var)
 	}
 	else if (var->next == NULL)
 	{
-		var->next = newVar(name, val);
+		var->next = newVar(name, val, tmp);
 		return var->next;
 	}
 	else
 	{
-		return findVar(name, val, var->next);
+		return findVar(name, val, var->next, tmp);
 	}
 	
 }
 
-struct varNode* newVar(char* name, int val)
+struct varNode* newVar(char* name, int val, int tmp)
 {
 	struct varNode* var = (struct varNode*) malloc(sizeof(struct varNode));
 	sprintf(var->name, "%s", name);
 	var->val = val;
+	var->tmp = tmp;
 	var->next = NULL;
 	return var;
 }
@@ -355,11 +365,13 @@ struct varNode* newVar(char* name, int val)
 void printStack()
 {
 	struct instNode *tmp = codeStack->bottom;
+	int lastTabCnt = 0;
 	while (tmp != NULL)
 	{
 		for (int i=0; i<tmp->tabCnt; i++)
 			printf("\t");
-
+		if (tmp->tabCnt < lastTabCnt && tmp->operation != '|')
+			printf("}\n");
 		switch(tmp->operation) {
 			case '=':
 				printf("%s=%s;\n", tmp->defVar->name, tmp->leftVar->name);
@@ -376,10 +388,12 @@ void printStack()
 			case '?':
 				printf("If(%s){\n", tmp->leftVar->name);
 				break;
+			case '|':
+				printf("}else{\n");
 			defautlt:
 				break;
 		}
-		
+		lastTabCnt = tmp->tabCnt;
 		struct instNode *next = tmp->next;
 		free(tmp);
 		tmp = next;
