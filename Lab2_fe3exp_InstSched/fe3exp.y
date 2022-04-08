@@ -42,6 +42,20 @@ extern FILE *yyin;
 		struct varNode *prev;
 	} varNode;
 
+	typedef struct dependNode
+	{
+		struct instNode *inst;
+		struct dependNode *depend1;
+		struct dependNode *depend2;
+		struct dependNode *depend3;
+		int weight1;
+		int weight2;
+		int weight3;
+		int dependCnt;
+		struct dependNode *next;
+		struct dependNode *prev;
+	} dependNode;
+
 	typedef struct instStack
 	{
 		struct instNode *top;
@@ -54,6 +68,12 @@ extern FILE *yyin;
 		struct varNode *top;
 	} literalStack;
 
+	typedef struct dependStack
+	{
+		struct dependNode *bottom;
+		struct dependNode *top;
+	} dependStack;
+
 	/* prototype functions */
 	struct instNode* stackPushNode(struct instNode *node);
 	struct instNode* stackPush(struct varNode *defVar, struct varNode *leftVar, struct varNode *rightVar, int varCnt, int operation, int val);
@@ -64,11 +84,14 @@ extern FILE *yyin;
 	struct varNode* assignVar(char *name, int val, int tmp);
 	struct varNode* findVar(char *name, int val, struct varNode *var, int tmp);
 	struct varNode* newVar(char* name, int val, int tmp);
+	struct dependNode* newDepend(struct instNode *inst);
+	struct dependNode* pushDepend(struct instNode *inst);
 	void printStack();
 
 	struct varNode *usrHead;
 	struct instStack *codeStack;
 	struct literalStack *literals;
+	struct dependStack *DDG;
 
 	int *tmpCnt;
 }
@@ -150,7 +173,8 @@ exp : exp '+' factor
 			node->tabCnt++;
 			dependBottom = node;
 		}
-		dependBottom->prev = NULL;
+		if (instCnt)
+			dependBottom->prev = NULL;
 		$$ = stackPush(NULL, $1->defVar, $3->defVar, 3, '?', val);
 		while(instCnt)
 		{
@@ -354,12 +378,48 @@ struct varNode* findVar(char *name, int val, struct varNode *var, int tmp)
 
 struct varNode* newVar(char* name, int val, int tmp)
 {
-	struct varNode* var = (struct varNode*) malloc(sizeof(struct varNode));
+	struct varNode *var = (struct varNode*) malloc(sizeof(struct varNode));
 	sprintf(var->name, "%s", name);
 	var->val = val;
 	var->tmp = tmp;
 	var->next = NULL;
 	return var;
+}
+
+struct dependNode* newDepend(struct instNode *inst)
+{
+	struct dependNode *depend = (struct dependNode*) malloc(sizeof(struct dependNode));
+	depend->inst = inst;
+	depend->dependCnt = 0;
+	depend->next = NULL;
+	depend->prev = NULL;
+	return depend;
+}
+
+struct dependNode* pushDepend(struct instNode *inst)
+{
+	struct dependNode *depend = newDepend(inst);
+	if (DDG->bottom == NULL)
+	{
+		DDG->bottom = depend;
+	}
+	else
+	{
+		DDG->top->next = depend;
+		depend->prev = DDG->top;
+	}
+	DDG->top = depend;
+	return depend;
+}
+
+void loadDepend()
+{
+	struct instNode *inst = codeStack->bottom;
+	while (inst != NULL)
+	{
+		pushDepend(inst);
+		inst = inst->next;
+	}
 }
 
 void printStack()
@@ -433,10 +493,24 @@ void freeNodes()
 	return;
 }
 
+void printDDG()
+{
+	struct dependNode* node = DDG->bottom;
+	while (node != NULL)
+	{
+		if (node->inst->defVar != NULL)
+			printf("%s\n", node->inst->defVar->name);
+		else
+			printf("No defVar\n");
+		node = node->next;
+	}
+}
+
 int main(int argc, char *argv[]) {
 	usrHead = (struct varNode*) malloc(sizeof(struct varNode));
 	codeStack = (struct instStack*) malloc(sizeof(struct instStack));
 	literals = (struct literalStack*) malloc(sizeof(struct literalStack));
+	DDG = (struct dependStack*) malloc(sizeof(struct dependStack));
 	codeStack->top = NULL;
 	codeStack->bottom = NULL;
 	codeStack->cnt = 0;
@@ -452,6 +526,8 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	yyparse();
+	loadDepend();
+	printDDG();
 	printStack();
 	freeNodes();
 	free(tmpCnt);
