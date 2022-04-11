@@ -1,0 +1,12 @@
+Tmp1=C*1;
+A=B+Tmp1;
+B=D/2;
+C=B;
+D=4;
+If(D){
+D=5;
+E=5;
+} else {
+E=0;
+}
+F=D+E;
