@@ -67,7 +67,7 @@ const int VARNAME_LEN = 100;
 	struct varNode* newVar(char* name, int val, int tmp);
 	std::vector<struct instNode*> pushBBvector();
 	void buildBBvector();
-	void loadMap();
+	int loadMap();
 }
 
 %union {
@@ -361,16 +361,16 @@ void buildBBvector()
 	}
 }
 
-int findStartTime(std::unordered_set<struct instNode*> set)
+int findStartTime(std::unordered_set<struct instNode*> set, int prevStartTime)
 {
 	if (set.empty())
 	{
-		return 0;
+		return prevStartTime + 1;
 	}
-	int time = 0;
+	int time = prevStartTime;
 	for (struct instNode *node : set)
 	{
-		int tmpLat = (latency(node->operation) + node->startTime);
+		int tmpLat = (latency(node->operation) + node->startTime + 1);
 		time = (tmpLat > time) ? tmpLat : time;
 	}
 	return time;
@@ -381,7 +381,7 @@ bool compareStartTime(struct instNode *node1, struct instNode *node2)
 	return (node1->startTime < node2->startTime);
 }
 
-void loadMap()
+int loadMap()
 {
 	for (auto inst = instVector.rbegin(); inst != instVector.rend(); ++inst)
 	{
@@ -392,18 +392,17 @@ void loadMap()
 			{
 				tmpSet.insert(*otherInst);
 			}
-			else if ((*inst)->defVar == (*otherInst)->defVar || (*inst)->defVar == (*otherInst)->leftVar || (*inst)->defVar == (*otherInst)->rightVar)
-			{
-				tmpSet.insert(*otherInst);
-			}
 		}
 		adjDDG[*inst] = tmpSet;
 	}
 
-	for (struct instNode *node : instVector)
+	instVector[0]->startTime = 0;
+	for (int i=1; i<instVector.size(); i++)
 	{
-		node->startTime = findStartTime(adjDDG[node]);
+		instVector[i]->startTime = findStartTime(adjDDG[instVector[i]], instVector[i-1]->startTime);
 	}
+
+	return instVector.back()->startTime + latency(instVector.back()->operation);
 }
 
 void printStack()
@@ -476,8 +475,9 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	yyparse();
-	loadMap();
+	int cycles = loadMap();
 	printStack();
+	std::cout << "Cycles required to run: " << cycles << std::endl;
 	delete tmpCnt;
 	delete bbCnt;
 	fclose(yyin);
