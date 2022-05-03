@@ -367,7 +367,7 @@ int findStartTime(std::unordered_set<struct instNode*> set, int prevStartTime)
 	{
 		return prevStartTime + 1;
 	}
-	int time = prevStartTime;
+	int time = prevStartTime + 1;
 	for (struct instNode *node : set)
 	{
 		int tmpLat = (latency(node->operation) + node->startTime + 1);
