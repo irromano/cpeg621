@@ -6,7 +6,6 @@
 #include <math.h>
 #include <vector>
 #include <unordered_map>
-#include <unordered_set>
 #include <iostream>
 #include <bits/stdc++.h>
 
@@ -32,6 +31,7 @@ int *tmpCnt;
 
 %code requires {
 #include <vector>
+#include <unordered_set>
 const int VARNAME_LEN = 100;
 	typedef struct instNode
 	{
