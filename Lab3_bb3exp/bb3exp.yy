@@ -5,6 +5,8 @@
 #include <string.h>
 #include <math.h>
 #include <vector>
+#include <unordered_map>
+#include <unordered_set>
 #include <iostream>
 
 #include "bb3exp.tab.hh"
@@ -23,6 +25,7 @@ int yylex();
 std::vector<struct varNode*> varVector;
 std::vector<struct instNode*> instVector;
 std::vector<std::vector<struct instNode*>> bbVector;
+std::unordered_map<struct instNode*, std::unordered_set<struct instNode*>> adjDDG;
 int *tmpCnt;
 int *bbCnt;
 %}
@@ -44,6 +47,7 @@ const int VARNAME_LEN = 100;
 		int split1;
 		int split2;
 		int tabCnt;
+		int startTime;
 	} instNode;
 
 	typedef struct varNode
@@ -63,6 +67,7 @@ const int VARNAME_LEN = 100;
 	struct varNode* newVar(char* name, int val, int tmp);
 	std::vector<struct instNode*> pushBBvector();
 	void buildBBvector();
+	void loadMap();
 }
 
 %union {
@@ -324,15 +329,15 @@ int latency(int op)
 	{
 		case '+':
 		case '-':
-			return 1;
+			return 3;
 		case '=':
 		case '?':
 			return 2;
 		case '*':
 		case '/':
-			return 4;
+			return 5;
 		case '^':
-			return 8;
+			return 9;
 		default:
 			break;
 	}
@@ -354,15 +359,51 @@ void buildBBvector()
 	{
 		bbVector[(*tmp)->bb - 1].push_back(*tmp);
 	}
-	/* for (auto tmp = instVector.begin(); tmp != instVector.end(); ++tmp)
-	{
-		bbVector.back().push_back(*tmp);
-		if ((*tmp)->split1)
-		{
-			pushBBvector();
-		} 
+}
 
-	}*/
+int findStartTime(std::unordered_set<struct instNode*> set)
+{
+	if (set.empty())
+	{
+		return 0;
+	}
+	int time = 0;
+	for (struct instNode *node : set)
+	{
+		int tmpLat = (latency(node->operation) + node->startTime);
+		time = (tmpLat > time) ? tmpLat : time;
+	}
+	return time;
+}
+
+bool compareStartTime(struct instNode *node1, struct instNode *node2)
+{
+	return (node1->startTime < node2->startTime);
+}
+
+void loadMap()
+{
+	for (auto inst = instVector.rbegin(); inst != instVector.rend(); ++inst)
+	{
+		std::unordered_set<struct instNode*> tmpSet;
+		for (auto otherInst = inst+1; otherInst != instVector.rend(); ++otherInst)
+		{
+			if ((*otherInst)->defVar == (*inst)->defVar || (*otherInst)->defVar == (*inst)->leftVar || (*otherInst)->defVar == (*inst)->rightVar)
+			{
+				tmpSet.insert(*otherInst);
+			}
+			else if ((*inst)->defVar == (*otherInst)->defVar || (*inst)->defVar == (*otherInst)->leftVar || (*inst)->defVar == (*otherInst)->rightVar)
+			{
+				tmpSet.insert(*otherInst);
+			}
+		}
+		adjDDG[*inst] = tmpSet;
+	}
+
+	for (struct instNode *node : instVector)
+	{
+		node->startTime = findStartTime(adjDDG[node]);
+	}
 }
 
 void printStack()
@@ -375,7 +416,6 @@ void printStack()
 		int lastTabCnt = 0;
 		for (auto tmp = (*bb).begin(); tmp != (*bb).end(); ++tmp)
 		{
-			// for (int i=0; i<(*tmp)->tabCnt; i++)
 			std::cout << "\t";
 			if ((*tmp)->tabCnt < lastTabCnt && (*tmp)->operation != '|')
 				std::cout << "}\n\t";
@@ -405,8 +445,6 @@ void printStack()
 					std::cout << "\t\tgoto BB" << (*tmp)->split2 << ";" << std::endl;
 					std::cout << "\t}" << std::endl;
 					break;
-				case '|':
-					std::cout << "}else{" << std::endl;
 				default:
 					break;
 			}
@@ -438,6 +476,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	yyparse();
+	loadMap();
 	printStack();
 	delete tmpCnt;
 	delete bbCnt;
