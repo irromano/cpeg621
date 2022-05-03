@@ -22,7 +22,9 @@ int yylex();
 
 std::vector<struct varNode*> varVector;
 std::vector<struct instNode*> instVector;
+std::vector<std::vector<struct instNode*>> bbVector;
 int *tmpCnt;
+int *bbCnt;
 %}
 
 %code requires {
@@ -37,7 +39,10 @@ const int VARNAME_LEN = 100;
 		char operation;
 		struct instNode *next;
 		struct instNode *prev;
-		struct instNode *parent;
+		int bb;
+		int parent;
+		int split1;
+		int split2;
 		int tabCnt;
 	} instNode;
 
@@ -56,6 +61,8 @@ const int VARNAME_LEN = 100;
 	struct varNode* assignVar(char* name, int val, int tmp);
 	struct varNode* findVar(char* name, int val, int tmp);
 	struct varNode* newVar(char* name, int val, int tmp);
+	std::vector<struct instNode*> pushBBvector();
+	void buildBBvector();
 }
 
 %union {
@@ -131,22 +138,31 @@ exp : exp '+' factor
 		}
 		instVector.push_back(newInst(NULL, $1->defVar, $3->defVar, 3, '?', val));
 		$$ = instVector.back();
+		(*bbCnt)++;
+		$3->bb = *bbCnt;
+		$$->split1 = *bbCnt;
 		while(!(tmpVector.empty()))
 		{
 			struct instNode *tmpNode = tmpVector.back();
 			tmpVector.pop_back();
-			tmpNode->parent = $$;
+			tmpNode->parent = $$->bb;
 			tmpNode->tabCnt++;
 			instVector.push_back(tmpNode);
 		}
 		struct instNode *node = newInst($$->defVar, $3->defVar, NULL, 2, '=', val);
-		node->parent = $$;
+		node->parent = $$->bb;
 		node->tabCnt++;
 		instVector.push_back(node);
-		instVector.push_back(newInst(NULL, NULL, NULL, 0, '|', 0));
+		(*bbCnt)++;
+		$$->split2 = *bbCnt;
+		instVector.back()->split1 = *bbCnt +1;
+		// instVector.push_back(newInst(NULL, NULL, NULL, 0, '|', 0));
+		// instVector.back()->bb = $$->bb;
 		struct varNode *zeroVar = findVar("0", 0, 0);
 		struct instNode *elseNode = newInst($$->defVar, zeroVar, NULL, 2, '=', 0);
-		elseNode->parent = $$;
+		(*bbCnt)++;
+		elseNode->split1 = *bbCnt;
+		elseNode->parent = $$->bb;
 		elseNode->tabCnt++;
 		instVector.push_back(elseNode);
 	}
@@ -217,9 +233,9 @@ term : NUMBER
 		{
 			*tmpCnt = *tmpCnt - 1;
 			instVector.back()->defVar = node;
-			if (instVector.back()->parent != NULL)
+			if (instVector.back()->parent)
 			{
-				instVector.rbegin()[2]->defVar = node;
+				instVector.rbegin()[1]->defVar = node;
 				*tmpCnt = *tmpCnt - 1;
 			}
 		}
@@ -263,7 +279,10 @@ struct instNode* newInst(struct varNode *defVar, struct varNode *leftVar, struct
 	inst->tabCnt = 0;
 	inst->next = NULL;
 	inst->prev = NULL;
-	inst->parent = NULL;
+	inst->parent = 0;
+	inst->split1 = 0;
+	inst->split2 = 0;
+	inst->bb = *bbCnt;
 	return inst;
 }
 
@@ -320,37 +339,79 @@ int latency(int op)
 	return 0;
 }
 
-void printStack()
+std::vector<struct instNode*> pushBBvector()
 {
-	int lastTabCnt = 0;
+	std::vector<struct instNode*> bb;
+	bbVector.push_back(bb);
+	return bb;
+}
+
+void buildBBvector()
+{
+	for (int i=0; i<*bbCnt; i++)
+		pushBBvector();
 	for (auto tmp = instVector.begin(); tmp != instVector.end(); ++tmp)
 	{
-		for (int i=0; i<(*tmp)->tabCnt; i++)
+		bbVector[(*tmp)->bb - 1].push_back(*tmp);
+	}
+	/* for (auto tmp = instVector.begin(); tmp != instVector.end(); ++tmp)
+	{
+		bbVector.back().push_back(*tmp);
+		if ((*tmp)->split1)
+		{
+			pushBBvector();
+		} 
+
+	}*/
+}
+
+void printStack()
+{
+	buildBBvector();
+	int bCnt = 1;
+	for (auto bb = bbVector.begin(); bb != bbVector.end(); ++bb)
+	{
+		std::cout << "BB" << bCnt++ << ":" << std::endl;
+		int lastTabCnt = 0;
+		for (auto tmp = (*bb).begin(); tmp != (*bb).end(); ++tmp)
+		{
+			// for (int i=0; i<(*tmp)->tabCnt; i++)
 			std::cout << "\t";
-		if ((*tmp)->tabCnt < lastTabCnt && (*tmp)->operation != '|')
-			std::cout << "}\n";
-		switch((*tmp)->operation) {
-			case '=':
-				std::cout << (*tmp)->defVar->name << "=" << (*tmp)->leftVar->name << ";" << std::endl;
-				break;
-			case '+':
-			case '-':
-			case '*':
-			case '/':
-				std::cout << (*tmp)->defVar->name << "=" << (*tmp)->leftVar->name << (*tmp)->operation << (*tmp)->rightVar->name << ";" << std::endl;
-				break;
-			case '^':
-				std::cout << (*tmp)->defVar->name << "=" << (*tmp)->leftVar->name << "**" << (*tmp)->rightVar->name << ";" << std::endl;
-				break;
-			case '?':
-				std::cout << "If(" << (*tmp)->leftVar->name << "){" << std::endl;
-				break;
-			case '|':
-				std::cout << "}else{" << std::endl;
-			defautlt:
-				break;
+			if ((*tmp)->tabCnt < lastTabCnt && (*tmp)->operation != '|')
+				std::cout << "}\n\t";
+			switch((*tmp)->operation) {
+				case '=':
+					std::cout << (*tmp)->defVar->name << "=" << (*tmp)->leftVar->name << ";" << std::endl;
+					if ((*tmp)->split1)
+						std::cout << "\tgoto BB" << (*tmp)->split1 << ";" << std::endl;
+					break;
+				case '+':
+				case '-':
+				case '*':
+				case '/':
+					std::cout << (*tmp)->defVar->name << "=" << (*tmp)->leftVar->name << (*tmp)->operation << (*tmp)->rightVar->name << ";" << std::endl;
+					if ((*tmp)->split1)
+						std::cout << "\tgoto BB" << (*tmp)->split1 << ";" << std::endl;
+					break;
+				case '^':
+					std::cout << (*tmp)->defVar->name << "=" << (*tmp)->leftVar->name << "**" << (*tmp)->rightVar->name << ";" << std::endl;
+					if ((*tmp)->split1)
+						std::cout << "\tgoto BB;" << (*tmp)->split1 << ";" << std::endl;
+					break;
+				case '?':
+					std::cout << "If(" << (*tmp)->leftVar->name << "){" << std::endl;
+					std::cout << "\t\tgoto BB" << (*tmp)->split1 << ";" << std::endl;
+					std::cout << "\t}else{" << std::endl;
+					std::cout << "\t\tgoto BB" << (*tmp)->split2 << ";" << std::endl;
+					std::cout << "\t}" << std::endl;
+					break;
+				case '|':
+					std::cout << "}else{" << std::endl;
+				default:
+					break;
+			}
+			lastTabCnt = (*tmp)->tabCnt;
 		}
-		lastTabCnt = (*tmp)->tabCnt;
 	}
 }
 
@@ -365,6 +426,8 @@ void freeNodes()
 int main(int argc, char *argv[]) {
 	tmpCnt = new int;
 	*tmpCnt = 1;
+	bbCnt = new int;
+	*bbCnt = 1;
 	if (argc > 1)
 	{
 		yyin = fopen(argv[1], "r");
@@ -376,7 +439,8 @@ int main(int argc, char *argv[]) {
 	}
 	yyparse();
 	printStack();
-	free(tmpCnt);
+	delete tmpCnt;
+	delete bbCnt;
 	fclose(yyin);
 	return 0;
 }
