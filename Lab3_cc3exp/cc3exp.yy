@@ -9,7 +9,7 @@
 #include <unordered_set>
 #include <iostream>
 
-#include "bb3exp.tab.hh"
+#include "cc3exp.tab.hh"
 
 //#define DEBUG /* for debuging: print production results */
 int lineNum = 1;
