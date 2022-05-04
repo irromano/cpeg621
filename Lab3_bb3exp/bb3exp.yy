@@ -161,9 +161,8 @@ exp : exp '+' factor
 		(*bbCnt)++;
 		$$->split2 = *bbCnt;
 		instVector.back()->split1 = *bbCnt +1;
-		// instVector.push_back(newInst(NULL, NULL, NULL, 0, '|', 0));
-		// instVector.back()->bb = $$->bb;
-		struct varNode *zeroVar = findVar("0", 0, 0);
+		char zero[] = {'0', '\0'};
+		struct varNode *zeroVar = findVar(zero, 0, 0);
 		struct instNode *elseNode = newInst($$->defVar, zeroVar, NULL, 2, '=', 0);
 		(*bbCnt)++;
 		elseNode->split1 = *bbCnt;
@@ -335,7 +334,7 @@ int latency(int op)
 			return 2;
 		case '*':
 		case '/':
-			return 5;
+			return 6;
 		case '^':
 			return 9;
 		default:
@@ -376,11 +375,6 @@ int findStartTime(std::unordered_set<struct instNode*> set, int prevStartTime)
 	return time;
 }
 
-bool compareStartTime(struct instNode *node1, struct instNode *node2)
-{
-	return (node1->startTime < node2->startTime);
-}
-
 int loadMap()
 {
 	for (auto inst = instVector.rbegin(); inst != instVector.rend(); ++inst)
@@ -411,7 +405,8 @@ void printStack()
 	int bCnt = 1;
 	for (auto bb = bbVector.begin(); bb != bbVector.end(); ++bb)
 	{
-		std::cout << "BB" << bCnt++ << ":" << std::endl;
+		if ((*bb).size() > 0)
+			std::cout << "BB" << bCnt++ << ":" << std::endl;
 		int lastTabCnt = 0;
 		for (auto tmp = (*bb).begin(); tmp != (*bb).end(); ++tmp)
 		{
@@ -475,9 +470,9 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	yyparse();
-	int cycles = loadMap();
+	//int cycles = loadMap();
 	printStack();
-	std::cout << "Cycles required to run: " << cycles << std::endl;
+	//std::cout << "Cycles required to run: " << cycles << std::endl;
 	delete tmpCnt;
 	delete bbCnt;
 	fclose(yyin);
