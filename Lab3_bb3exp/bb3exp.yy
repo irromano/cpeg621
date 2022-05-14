@@ -26,6 +26,7 @@ std::vector<struct varNode*> varVector;
 std::vector<struct instNode*> instVector;
 std::vector<std::vector<struct instNode*>> bbVector;
 std::unordered_map<struct instNode*, std::unordered_set<struct instNode*>> adjDDG;
+std::vector<int> bbOrder;
 int *tmpCnt;
 int *bbCnt;
 %}
@@ -46,6 +47,7 @@ const int VARNAME_LEN = 100;
 		int parent;
 		int split1;
 		int split2;
+		bool elseInst;
 		int tabCnt;
 		int startTime;
 	} instNode;
@@ -67,7 +69,6 @@ const int VARNAME_LEN = 100;
 	struct varNode* newVar(char* name, int val, int tmp);
 	std::vector<struct instNode*> pushBBvector();
 	void buildBBvector();
-	int loadMap();
 }
 
 %union {
@@ -167,6 +168,7 @@ exp : exp '+' factor
 		(*bbCnt)++;
 		elseNode->split1 = *bbCnt;
 		elseNode->parent = $$->bb;
+		elseNode->elseInst = true;
 		elseNode->tabCnt++;
 		instVector.push_back(elseNode);
 	}
@@ -233,7 +235,7 @@ term : NUMBER
 	{
 		char* str = $1;
 		struct varNode *node = assignVar(str, $3->defVar->val, 0);
-		if ($3->defVar->tmp)
+		if ($3->defVar->tmp && $3->bb == *bbCnt)
 		{
 			*tmpCnt = *tmpCnt - 1;
 			instVector.back()->defVar = node;
@@ -286,6 +288,8 @@ struct instNode* newInst(struct varNode *defVar, struct varNode *leftVar, struct
 	inst->parent = 0;
 	inst->split1 = 0;
 	inst->split2 = 0;
+	inst->elseInst = false;
+	inst->startTime = 0;
 	inst->bb = *bbCnt;
 	return inst;
 }
@@ -371,9 +375,9 @@ int findStartTime(std::unordered_set<struct instNode*> set, int prevStartTime)
 	return time;
 }
 
-int loadMap()
+void loadMap()
 {
-	for (auto inst = instVector.rbegin(); inst != instVector.rend(); ++inst)
+	for (auto inst = instVector.rbegin(); inst != instVector.rend(); inst++)
 	{
 		std::unordered_set<struct instNode*> tmpSet;
 		for (auto otherInst = inst+1; otherInst != instVector.rend(); ++otherInst)
@@ -385,11 +389,18 @@ int loadMap()
 		}
 		adjDDG[*inst] = tmpSet;
 	}
+}
 
+int programLatency()
+{
 	instVector[0]->startTime = 0;
+	instNode* lastInst = instVector[0];
 	for (int i=1; i<instVector.size(); i++)
 	{
-		instVector[i]->startTime = findStartTime(adjDDG[instVector[i]], instVector[i-1]->startTime);
+		while (instVector[i]->elseInst)
+			i++;
+		instVector[i]->startTime = findStartTime(adjDDG[instVector[i]], lastInst->startTime);
+		lastInst = instVector[i];
 	}
 
 	return instVector.back()->startTime + latency(instVector.back()->operation);
@@ -397,14 +408,13 @@ int loadMap()
 
 void printStack()
 {
-	buildBBvector();
 	int bCnt = 1;
-	for (auto bb = bbVector.begin(); bb != bbVector.end(); ++bb)
+	for (auto bb = bbVector.begin(); bb != bbVector.end(); bb++)
 	{
 		if ((*bb).size() > 0)
 			std::cout << "BB" << bCnt++ << ":" << std::endl;
 		int lastTabCnt = 0;
-		for (auto tmp = (*bb).begin(); tmp != (*bb).end(); ++tmp)
+		for (auto tmp = (*bb).begin(); tmp != (*bb).end(); tmp++)
 		{
 			std::cout << "\t";
 			if ((*tmp)->tabCnt < lastTabCnt && (*tmp)->operation != '|')
@@ -466,7 +476,9 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	yyparse();
-	int cycles = loadMap();
+	buildBBvector();
+	loadMap();
+	int cycles = programLatency();
 	printStack();
 	std::cout << "Cycles required to run: " << cycles << std::endl;
 	delete tmpCnt;
