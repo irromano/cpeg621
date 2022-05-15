@@ -420,41 +420,48 @@ void cse()
 
 void loadDuplicates()
 {
+	std::unordered_set<struct instNode*> dupSet;	//Used to prevent cs created from an expression already eliminated
 	for (auto inst = instVector.begin(); inst != instVector.end(); inst++)
 	{
-		if (latency((*inst)->operation) == 3 || latency((*inst)->operation) == 6)		// If inst operation is +, -, *, /
+		if (!(latency((*inst)->operation) % 3))		// If inst operation is +, -, *, /, or **
 		{
-			std::unordered_set<struct instNode*> tmpSet;
-			for (auto otherInst = inst + 1; otherInst != instVector.end(); otherInst++)
+			if (dupSet.find((*inst)) == dupSet.end())
 			{
-				if ((*otherInst)->operation == (*inst)->operation)
+				std::unordered_set<struct instNode*> tmpSet;
+				for (auto otherInst = inst + 1; otherInst != instVector.end(); otherInst++)
 				{
-					if ((*otherInst)->bb == (*inst)->bb)
+					if ((*otherInst)->operation == (*inst)->operation)
 					{
-						struct varNode *left = (*inst)->leftVar;
-						struct varNode *right = (*inst)->rightVar;
-						if ((*otherInst)->leftVar == left && (*otherInst)->rightVar == right || (*otherInst)->leftVar == right && (*otherInst)->rightVar == left)
+						if ((*otherInst)->parent == (*inst)->parent)
 						{
-							bool modified = false;
-							auto tmpInst = inst + 1;
-							while (tmpInst != otherInst)
+							struct varNode *left = (*inst)->leftVar;
+							struct varNode *right = (*inst)->rightVar;
+							if ((*otherInst)->leftVar == left && (*otherInst)->rightVar == right || (*otherInst)->leftVar == right && (*otherInst)->rightVar == left)
 							{
-								if ((*tmpInst)->defVar == left || (*tmpInst)->defVar == right)
+								bool modified = false;
+								auto tmpInst = inst + 1;
+								while (tmpInst != otherInst)
 								{
-									modified = true;
-									break;
+									if ((*tmpInst)->defVar == left || (*tmpInst)->defVar == right)
+									{
+										modified = true;
+										break;
+									}
+									tmpInst++;
 								}
-								tmpInst++;
+								if (!modified)
+								{
+									tmpSet.insert(*otherInst);
+									dupSet.insert(tmpSet.begin(), tmpSet.end());
+								}
 							}
-							if (!modified)
-								tmpSet.insert(*otherInst);
 						}
 					}
 				}
-			}
-			if (tmpSet.size())	
-			{
-				duplicateMatrix[*inst] = tmpSet;
+				if (tmpSet.size())	
+				{
+					duplicateMatrix[*inst] = tmpSet;
+				}
 			}
 		}
 	}
