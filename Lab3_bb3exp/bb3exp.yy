@@ -26,7 +26,7 @@ std::vector<struct varNode*> varVector;
 std::vector<struct instNode*> instVector;
 std::vector<std::vector<struct instNode*>> bbVector;
 std::unordered_map<struct instNode*, std::unordered_set<struct instNode*>> adjDDG;
-std::vector<int> bbOrder;
+std::unordered_map<struct instNode*, struct instNode*> duplicates;
 int *tmpCnt;
 int *bbCnt;
 %}
@@ -380,7 +380,7 @@ void loadMap()
 	for (auto inst = instVector.rbegin(); inst != instVector.rend(); inst++)
 	{
 		std::unordered_set<struct instNode*> tmpSet;
-		for (auto otherInst = inst+1; otherInst != instVector.rend(); ++otherInst)
+		for (auto otherInst = inst+1; otherInst != instVector.rend(); otherInst++)
 		{
 			if ((*otherInst)->defVar == (*inst)->defVar || (*otherInst)->defVar == (*inst)->leftVar || (*otherInst)->defVar == (*inst)->rightVar)
 			{
@@ -395,16 +395,21 @@ int programLatency()
 {
 	instVector[0]->startTime = 0;
 	instNode* lastInst = instVector[0];
+	int maxInstFinish = latency(instVector[0]->operation);
 	for (int i=1; i<instVector.size(); i++)
 	{
 		while (instVector[i]->elseInst)
 			i++;
 		instVector[i]->startTime = findStartTime(adjDDG[instVector[i]], lastInst->startTime);
+		if (instVector[i]->startTime + latency(instVector[i]->operation) > maxInstFinish)
+			maxInstFinish = instVector[i]->startTime + latency(instVector[i]->operation);
 		lastInst = instVector[i];
 	}
 
-	return instVector.back()->startTime + latency(instVector.back()->operation);
+	return maxInstFinish;
 }
+
+
 
 void printStack()
 {

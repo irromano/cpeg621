@@ -464,16 +464,19 @@ void loadDuplicates()
 int programLatency()
 {
 	instVector[0]->startTime = 0;
+	int maxInstFinish = latency(instVector[0]->operation);
 	instNode* lastInst = instVector[0];
 	for (int i=1; i<instVector.size(); i++)
 	{
 		while (instVector[i]->elseInst)
 			i++;
 		instVector[i]->startTime = findStartTime(adjDDG[instVector[i]], lastInst->startTime);
+		if (instVector[i]->startTime + latency(instVector[i]->operation) > maxInstFinish)
+			maxInstFinish = instVector[i]->startTime + latency(instVector[i]->operation);
 		lastInst = instVector[i];
 	}
 
-	return instVector.back()->startTime + latency(instVector.back()->operation);
+	return maxInstFinish;
 }
 
 void printStack()
