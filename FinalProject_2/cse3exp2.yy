@@ -342,7 +342,7 @@ int latency(int op)
 		case '/':
 			return 6;
 		case '^':
-			return 9;
+			return 10;
 		default:
 			break;
 	}
@@ -429,7 +429,7 @@ void loadDuplicates()
 	std::unordered_set<struct instNode*> dupSet;	//Used to prevent cs created from an expression already eliminated
 	for (auto inst = instVector.begin(); inst != instVector.end(); inst++)
 	{
-		if (!(latency((*inst)->operation) % 3))		// If inst operation is +, -, *, /, or **
+		if (!(latency((*inst)->operation) % 3) || latency((*inst)->operation) == 10)		// If inst operation is +, -, *, /, or **
 		{
 			if (dupSet.find((*inst)) == dupSet.end())
 			{
