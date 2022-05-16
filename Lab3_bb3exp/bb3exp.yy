@@ -340,7 +340,7 @@ int latency(int op)
 		case '/':
 			return 6;
 		case '^':
-			return 9;
+			return 10;
 		default:
 			break;
 	}
