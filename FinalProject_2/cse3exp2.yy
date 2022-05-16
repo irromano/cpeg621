@@ -445,7 +445,7 @@ void loadDuplicates()
 							if ((*otherInst)->leftVar == left && (*otherInst)->rightVar == right || (*otherInst)->leftVar == right && (*otherInst)->rightVar == left)
 							{
 								bool modified = false;
-								auto tmpInst = inst + 1;
+								auto tmpInst = inst;
 								while (tmpInst != otherInst)
 								{
 									if ((*tmpInst)->defVar == left || (*tmpInst)->defVar == right)
