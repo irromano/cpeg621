@@ -410,6 +410,7 @@ void cse()
 	{
 		struct instNode *commonSub = newInst(NULL, (common->first)->leftVar, (common->first)->rightVar, (common->first)->varCnt, (common->first)->operation, (common->first)->defVar->val);
 		auto inst = std::find(instVector.begin(), instVector.end(), common->first);
+		commonSub->bb = (*inst)->bb;
 		if (inst != instVector.end())
 		{
 			instVector.insert(inst, commonSub);
