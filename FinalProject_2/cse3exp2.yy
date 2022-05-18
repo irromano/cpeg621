@@ -384,12 +384,13 @@ void loadMap()
 	for (auto inst = instVector.rbegin(); inst != instVector.rend(); inst++)
 	{
 		std::unordered_set<struct instNode*> tmpSet;
-		for (auto otherInst = inst+1; otherInst != instVector.rend(); ++otherInst)
+		auto maxStall =  (inst + latency((*inst)->operation) < instVector.rend()) ? inst + latency((*inst)->operation) : instVector.rend();
+		for (auto otherInst = inst+1; otherInst < maxStall; ++otherInst)
 		{
-			if ((*otherInst)->defVar == (*inst)->defVar || (*otherInst)->defVar == (*inst)->leftVar || (*otherInst)->defVar == (*inst)->rightVar)
+			if ((*otherInst)->defVar == (*inst)->defVar || (*otherInst)->defVar == (*inst)->leftVar || (*otherInst)->defVar == (*inst)->rightVar && ((*inst)->operation == '+' || (*inst)->operation == '*'))
 			{
 				tmpSet.insert(*otherInst);
-				dependancies[*inst] = *otherInst;
+				dependancies[*otherInst] = *inst;
 			}
 		}
 		adjDDG[*inst] = tmpSet;
@@ -429,7 +430,7 @@ void loadDuplicates()
 	std::unordered_set<struct instNode*> dupSet;	//Used to prevent cs created from an expression already eliminated
 	for (auto inst = instVector.begin(); inst != instVector.end(); inst++)
 	{
-		if (!(latency((*inst)->operation) % 3) || latency((*inst)->operation) == 10)		// If inst operation is +, -, *, /, or **
+		if ((latency((*inst)->operation) != 2) && dependancies[*inst])		// If inst operation is +, -, *, /, or **
 		{
 			if (dupSet.find((*inst)) == dupSet.end())
 			{
@@ -455,7 +456,7 @@ void loadDuplicates()
 									}
 									tmpInst++;
 								}
-								if (!modified && dependancies[*otherInst])
+								if (!modified)
 								{
 									tmpSet.insert(*otherInst);
 									dupSet.insert(tmpSet.begin(), tmpSet.end());

@@ -380,7 +380,8 @@ void loadMap()
 	for (auto inst = instVector.rbegin(); inst != instVector.rend(); inst++)
 	{
 		std::unordered_set<struct instNode*> tmpSet;
-		for (auto otherInst = inst+1; otherInst != instVector.rend(); otherInst++)
+		auto maxStall =  (inst + latency((*inst)->operation) < instVector.rend()) ? inst + latency((*inst)->operation) : instVector.rend();
+		for (auto otherInst = inst+1; otherInst < maxStall; otherInst++)
 		{
 			if ((*otherInst)->defVar == (*inst)->defVar || (*otherInst)->defVar == (*inst)->leftVar || (*otherInst)->defVar == (*inst)->rightVar)
 			{

@@ -381,7 +381,8 @@ void loadMap()
 	for (auto inst = instVector.rbegin(); inst != instVector.rend(); inst++)
 	{
 		std::unordered_set<struct instNode*> tmpSet;
-		for (auto otherInst = inst+1; otherInst != instVector.rend(); ++otherInst)
+		auto maxStall =  (inst + latency((*inst)->operation) < instVector.rend()) ? inst + latency((*inst)->operation) : instVector.rend();
+		for (auto otherInst = inst+1; otherInst < maxStall; ++otherInst)
 		{
 			if ((*otherInst)->defVar == (*inst)->defVar || (*otherInst)->defVar == (*inst)->leftVar || (*otherInst)->defVar == (*inst)->rightVar)
 			{
@@ -424,7 +425,7 @@ void loadDuplicates()
 	std::unordered_set<struct instNode*> dupSet;	//Used to prevent cs created from an expression already eliminated
 	for (auto inst = instVector.begin(); inst != instVector.end(); inst++)
 	{
-		if (!(latency((*inst)->operation) % 3) || latency((*inst)->operation) == 10)		// If inst operation is +, -, *, /, or **
+		if (!(latency((*inst)->operation) == 2))		// If inst operation is +, -, *, /, or **
 		{
 			if (dupSet.find((*inst)) == dupSet.end())
 			{
@@ -437,7 +438,7 @@ void loadDuplicates()
 						{
 							struct varNode *left = (*inst)->leftVar;
 							struct varNode *right = (*inst)->rightVar;
-							if ((*otherInst)->leftVar == left && (*otherInst)->rightVar == right || (*otherInst)->leftVar == right && (*otherInst)->rightVar == left)
+							if ((*otherInst)->leftVar == left && (*otherInst)->rightVar == right || (*otherInst)->leftVar == right && (*otherInst)->rightVar == left && ((*inst)->operation == '+' || (*inst)->operation == '*'))
 							{
 								bool modified = false;
 								auto tmpInst = inst;
